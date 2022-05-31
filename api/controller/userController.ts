@@ -22,6 +22,7 @@ export class UserController {
 
   async registerUser(user: IRegisterUserRequest): Promise<IUser> {
     this.logger.info("Controller: registerUser", null);
+    console.log("Regiser object: ", user);
 
     if (!(await UserService.verifyCanRegister(user))) {
       throw new ConflictError();

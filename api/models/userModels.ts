@@ -1,7 +1,6 @@
 export interface IUser {
   userId: string;
   username: string;
-  email: string;
   createDate: Date;
 }
 export interface IInternalUser {

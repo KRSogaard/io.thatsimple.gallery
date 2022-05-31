@@ -19,15 +19,32 @@ class GroupService {
   }
 
   async getMyGroups(userId: string): Promise<IGroup[]> {
+    let groups = await GroupMemberModel.findOne({
+      userId: userId,
+    });
+    if (groups === null) {
+      return [];
+    }
+
     return (
-      await GroupModel.find({
-        userId: userId,
-      })
+      await GroupModel.find().where("_id").in(groups.groupIds).exec()
     ).map((x) => this.documentToInternal(x));
   }
 
   async getGroup(groupId: string): Promise<IGroup> {
     return this.documentToInternal(await GroupModel.findById(groupId));
+  }
+
+  async canUserViewGroup(groupId: string, userId: string): Promise<boolean> {
+    let group = await GroupModel.findById(groupId);
+    if (group === null) {
+      return false;
+    }
+
+    if (group.userId === userId || group.members.includes(userId)) {
+      return true;
+    }
+    return false;
   }
 
   async createGroup(groupName: string, userId: string): Promise<IGroup> {
@@ -36,17 +53,18 @@ class GroupService {
       userId: userId,
       members: [userId],
     });
+    console.log("Create group: ", group);
     await this.addGroupToUser(userId, group.id);
+    console.log("Adding user to group: ", userId);
     return this.documentToInternal(group);
   }
 
   async getGroupMemberes(groupId: string): Promise<IUser[]> {
-    let group: ISchemaGroup = await GroupModel.findOne({
-      groupId: groupId,
-    });
+    let group: ISchemaGroup = await GroupModel.findById(groupId);
     if (group === null) {
       return null;
     }
+    console.log("Fetching users: ", group.members);
     return await UserService.getUsersWithId(group.members);
   }
 
@@ -108,6 +126,13 @@ class GroupService {
     let groupMember: ISchemaGroupMember = await GroupMemberModel.findOne({
       userId: userId,
     });
+    if (groupMember === null) {
+      await GroupMemberModel.create({
+        userId: userId,
+        groupIds: [groupId],
+      });
+      return;
+    }
     groupMember.groupIds.push(groupId);
     await groupMember.save();
   }
@@ -119,6 +144,10 @@ class GroupService {
     let groupMember: ISchemaGroupMember = await GroupMemberModel.findOne({
       userId: userId,
     });
+    if (groupMember === null) {
+      return;
+    }
+
     groupMember.groupIds = groupMember.groupIds.filter(function (value) {
       return value != groupId;
     });

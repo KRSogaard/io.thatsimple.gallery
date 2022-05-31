@@ -38,6 +38,7 @@ class App {
   private routes(): void {
     // Public APIS
     this.express.post("/api/auth", (req, res, next) => {
+      console.log("auth user: /api/auth");
       this.userController.authUser(req.body).then(
         (data) => res.json(data),
         (err) => {
@@ -50,6 +51,7 @@ class App {
       res.sendFile(path.join(__dirname, "../ui/build/index.html"));
     });
     this.express.post("/api/user", (req, res, next) => {
+      console.log("Create Users: /api/users");
       this.userController.registerUser(req.body).then(
         (data) => res.json(data),
         (err) => {
@@ -61,13 +63,16 @@ class App {
 
     this.express.all("*", async (req, res, next) => {
       let authToken = req.header("auth");
-      if (authToken === null || authToken === "") {
+      console.log('Authentication user based on token"' + authToken + '"');
+      if (authToken === null || authToken === "" || authToken === undefined) {
+        console.log("Auth failed, no token provided");
         res.status(403);
         res.send();
         return;
       }
       let userCheck = await UserService.getUserByToken(authToken.trim());
       if (userCheck === null) {
+        console.log("Auth failed, no user found with token");
         res.status(403);
         res.send();
         return;
@@ -78,18 +83,78 @@ class App {
       (req as any).authUser = userCheck;
       next();
     });
-    this.express.get("/api/users", (req, res) => {
-      this.userController.getUsers().then((data) => res.json(data));
+    this.express.get("/api/users", (req, res, next) => {
+      console.log("Get Users: /api/users");
+      this.userController.getUsers().then(
+        (data) => res.json(data),
+        (err) => {
+          next(err);
+        }
+      );
     });
-    this.express.post("/api/group", (req, res) => {
+    this.express.post("/api/group", (req, res, next) => {
+      console.log("Create Group: /api/group");
+      this.groupController.createGroup((req as any).authUser, req.body).then(
+        (data) => res.json(data),
+        (err) => {
+          next(err);
+        }
+      );
+    });
+    this.express.get("/api/user/groups", (req, res, next) => {
+      console.log("Get my groups: /api/user/groups");
+      this.groupController.getMyGroups((req as any).authUser).then(
+        (data) => res.json(data),
+        (err) => {
+          next(err);
+        }
+      );
+    });
+    this.express.get("/api/group/:id", (req, res, next) => {
+      console.log("Get Group: /api/group/" + req.params.id + "");
+      if (!req.params.id) {
+        next(new NotAcceptableError());
+        return;
+      }
+      if (req.params.id.toLowerCase().trim() === "my") {
+        console.log("This is a my request");
+        next();
+        return;
+      }
+      this.groupController.getGroup((req as any).authUser, req.params.id).then(
+        (data) => res.json(data),
+        (err) => {
+          next(err);
+        }
+      );
+    });
+    this.express.delete("/api/group/:id", (req, res, next) => {
+      if (req.params.id.toLowerCase().trim() === "my") {
+        console.log("This is a my request");
+        next(new NotAcceptableError());
+        return;
+      }
+      console.log("/api/group/" + req.params.id + "");
       this.groupController
-        .createGroup((req as any).authUser, req.body)
-        .then((data) => res.json(data));
+        .deleteGroup((req as any).authUser, req.params.id)
+        .then(
+          (data) => res.json(data),
+          (err) => {
+            next(err);
+          }
+        );
     });
-    // handle undefined routes
-    // this.express.use("*", (req, res, next) => {
-    //     res.send("Make sure url is correct!!!");
-    // });
+    this.express.get("/api/group/:id/members", (req, res, next) => {
+      console.log("/api/group/" + req.params.id + "/members");
+      this.groupController
+        .getGroupMembers((req as any).authUser, req.params.id)
+        .then(
+          (data) => res.json(data),
+          (err) => {
+            next(err);
+          }
+        );
+    });
   }
 
   private errorHandeling(): void {
